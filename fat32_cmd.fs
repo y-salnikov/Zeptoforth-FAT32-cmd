@@ -12,7 +12,6 @@ begin-module fat32-cmd
 		: size-human-readable ( u -- )
 			.							\ for now
 		;
-	    
 		: char-in-string? { str len u-char -- flag }
 			false
 			len 0 do
@@ -170,9 +169,18 @@ begin-module fat32-cmd
 			;] fs-lock with-lock
 		;
 
+		: cd ( word -- )
+			token
+				dup 0= if  \ empty path = root
+					2drop
+					s" /"
+				then
+				fat32-tools::change-dir
+		;
+
 	end-module> import
 
 	' ls export ls
-	' char-in-string? export char-in-string?
+	' cd export cd
 
 end-module
