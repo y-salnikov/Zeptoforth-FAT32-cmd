@@ -178,9 +178,63 @@ begin-module fat32-cmd
 				fat32-tools::change-dir
 		;
 
+		: mkdir ( word ) \ todo: -p option
+			cr
+			token { tkn n }
+			begin 
+			n 0> if
+				tkn c@ [char] - = if
+					token to n to tkn
+				else
+					tkn n fat32-tools::create-dir
+					token to n to tkn
+				then
+			then
+			n 0= until
+		;
+		
+		defer rm-r ( path-adr path-n  -- ) \ recursive delete of dir
+				
+		:noname
+					\ todo:
+		; is rm-r
+
+		: rm ( word -- )
+			current-fs@ averts x-fs-not-set
+			cr
+			token { tkn n }
+			begin 
+			n 0> if
+				tkn c@ [char] - = if
+					tkn n [char] R char-in-string? if
+						token rm-r
+						0 to n
+					then
+					tkn n [char] h char-in-string? if
+						." rm [-R] <dir or file> <dir or file>..." cr
+						." -R : recursive deletion of one directory" cr
+						0 to n
+					then
+				else
+					tkn n fat32-tools::dir? if
+							tkn n fat32-tools::remove-dir
+					else
+						tkn n fat32-tools::file? if
+							tkn n fat32-tools::remove-file
+						then
+					then
+					token to n to tkn
+				then
+			then
+			n 0= until
+		;
+
 	end-module> import
 
 	' ls export ls
 	' cd export cd
+	' rm export rm
+	' mkdir export mkdir
 
 end-module
+
