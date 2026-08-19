@@ -57,15 +57,13 @@ begin-module fat32-cmd
 				token to n to tkn
 			then
 
-			long sorted dates
+			
 			tkn n
 			[:
-				[:
-					<fat32-dir> class-size [: 
-						 2dup swap clone-dir
-						<fat32-entry> class-size [:
-						0 0 { long sorted dates dir dir_ entry entries-count dir-count }
-						entry dir_
+				[: 
+					<fat32-entry> class-size [:
+						0 0 { dir entry entries-count dir-count }
+						entry dir
 						begin
 							2dup read-dir if
 									1 +to entries-count
@@ -75,42 +73,62 @@ begin-module fat32-cmd
 								2drop true
 							then
 						until
-						ram-here { names-buf }
-						entries-count 13 * ram-allot
-						4 ram-align,
-						ram-here { sort-buf }
-						entries-count cells ram-allot
-						ram-here { len-buf }
-						entries-count cells  ram-allot
-						ram-here { date-buf }
-						entries-count date-time-size 2* * ram-allot 4 ram-align,
-						
-						0 0 0 { dir-idx file-idx idx }
-						entry dir
-						begin
-							2dup read-dir if
-								over entry-dir? if
-									dir-idx to idx
-									1 +to dir-idx
-									names-buf idx 13 * + dup 13 bl fill
-									12 3 pick file-name@ + [char] / swap c!
-								else
-									dir-count file-idx + to idx
-									1 +to file-idx
-									over entry-file-size @ len-buf idx cells + !
-									names-buf idx 13 * + dup 13 bl fill
-									12 3 pick file-name@ 2drop
-								then
-									date-buf idx 2* date-time-size * + 2 pick create-date-time@ 
-									date-buf idx 2* 1+ date-time-size * + 2 pick modify-date-time@ 
-									idx sort-buf idx cells + !
-								false
-							else
-								2drop true
-							then
-						until
-						entries-count 0> if	
-							sorted if
+						entries-count dir-count
+					;] with-aligned-allot
+				;] current-fs@ with-open-dir-at-root-path
+			;] fs-lock with-lock
+			{ entries-count dir-count }
+
+			entries-count 0> if	
+
+				ram-here { names-buf }
+				entries-count 13 * ram-allot
+				4 ram-align,
+				ram-here { sort-buf }
+				entries-count cells ram-allot
+				ram-here { len-buf }
+				entries-count cells  ram-allot
+				ram-here { date-buf }
+				entries-count date-time-size 2* * ram-allot 4 ram-align,
+				
+				names-buf sort-buf len-buf date-buf entries-count dir-count
+				
+				tkn n
+				[:
+					[:		
+						<fat32-entry> class-size [:
+							
+							{ names-buf sort-buf len-buf date-buf entries-count dir-count dir entry }
+
+							0 0 0 { dir-idx file-idx idx }
+							entry dir
+							begin
+								2dup read-dir if
+									over entry-dir? if
+										dir-idx to idx
+										1 +to dir-idx
+										names-buf idx 13 * + dup 13 bl fill
+										12 3 pick file-name@ + [char] / swap c!
+									else
+										dir-count file-idx + to idx
+										1 +to file-idx
+										over entry-file-size @ len-buf idx cells + !
+										names-buf idx 13 * + dup 13 bl fill
+											12 3 pick file-name@ 2drop
+										then
+											date-buf idx 2* date-time-size * + 2 pick create-date-time@ 
+											date-buf idx 2* 1+ date-time-size * + 2 pick modify-date-time@ 
+											idx sort-buf idx cells + !
+										false
+									else
+										2drop true
+									then
+								until
+						;] with-aligned-allot
+					;] current-fs@ with-open-dir-at-root-path
+				;] fs-lock with-lock
+
+				sorted if
 								[: { offset n sort-buf names-buf }
 									0 0 true { idx1 idx2 finish }
 										n 1 > if
@@ -129,11 +147,11 @@ begin-module fat32-cmd
 
 								;] { bubble-sort }
 
-							0 dir-count sort-buf names-buf bubble-sort execute
-							dir-count entries-count dir-count - sort-buf names-buf bubble-sort execute
+					0 dir-count sort-buf names-buf bubble-sort execute
+					dir-count entries-count dir-count - sort-buf names-buf bubble-sort execute
 
-							then
-							long if
+				then
+				long if
 								entries-count 0 do 
 									names-buf sort-buf i cells + @ 13 * + 13 type \ name
 									2 spaces
@@ -148,25 +166,21 @@ begin-module fat32-cmd
 									then
 									cr
 								loop 
-							else
+				else
 								15 { col_width }
 								term-cols @ col_width / dup 0= if drop 1 then { num_cols }
 								entries-count num_cols / { num_rows }
-								entries-count num_cols mod num_cols 2/ >= if 1 +to num_rows then
+								entries-count num_cols mod 0 > if 1 +to num_rows then
 								\ correction
 								entries-count num_rows / to num_cols
-								entries-count num_rows mod num_rows 2/ >= if 1 +to num_cols then
+								entries-count num_rows mod 0 > if 1 +to num_cols then
 								num_rows 0 do 
 									num_cols 0 do 
 										i num_rows * j + dup entries-count < if cells sort-buf + @ 13 * names-buf + 13 type 2 spaces else drop col_width spaces then
 									loop cr
 								loop
-							then
-						then
-						;] with-aligned-allot
-					;] with-aligned-allot
-				;] current-fs@ with-open-dir-at-root-path
-			;] fs-lock with-lock
+				then
+			then
 		;
 
 		: cd ( word -- )
