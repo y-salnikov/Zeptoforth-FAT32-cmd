@@ -180,7 +180,9 @@ begin-module fat32-cmd
 									loop cr
 								loop
 				then
+				names-buf ram-here!
 			then
+			
 		;
 
 		: cd ( word -- )
@@ -207,10 +209,115 @@ begin-module fat32-cmd
 			n 0= until
 		;
 		
+		256 buffer: rm-path
+		variable rm-verbose
+
+		: rm-path-add { str n -- }
+			n 0> if
+				rm-path @ { idx }
+				rm-path cell + idx + 1- c@ [char] / = not idx 0> and if [char] / rm-path cell + idx + c! 1 +to idx then
+				n 0 do
+					str i + c@ rm-path cell + idx + i + c!
+				loop
+				[char] / rm-path cell + idx + n + c!
+				idx n + 1 + rm-path !
+			then
+		;
+
+		: rm-path-del ( -- )
+			rm-path @ 2 > rm-path cell + rm-path @ [char] / char-in-string? and if
+				0 rm-path @ 2 - do
+					rm-path cell + i + c@ [char] / = if 
+						i 1+ rm-path !
+						leave
+					then
+					i 0= if
+						rm-path cell + c@ [char] / = if
+							s" /" rm-path string!
+						else
+							0 rm-path !
+						then
+					then
+				-1 +loop
+
+			else
+						rm-path cell + c@ [char] / = if
+							s" /" rm-path string!
+						else
+							0 rm-path !
+						then
+
+			then
+		;
+
 		defer rm-r ( path-adr path-n  -- ) \ recursive delete of dir
 				
-		:noname
-					\ todo:
+		:noname { tkn n }
+				tkn n rm-path-add
+				ram-here { fn-buf }
+				16 ram-allot
+				ram-here { fn-len }
+				cell ram-allot
+				begin
+
+					fn-buf fn-len rm-path cell + rm-path @ 2dup [:
+						dup dir-empty? not if
+
+							<fat32-entry> class-size [: { fn-buf fn-len tkn n dir entry }
+								0 { flag }
+								entry dir
+								begin
+									2dup read-dir if
+										fn-buf 12 3 pick file-name@  fn-len ! drop
+										fn-buf fn-len @ s" ." equal-strings? not if
+											fn-buf fn-len @ s" .." equal-strings? not if
+												over entry-dir? if
+													\ rm subdir
+													1 to flag
+												else
+													\ rm file
+													2 to flag
+												then
+											then
+										then
+										false
+									else
+										2drop true
+									then
+								until
+
+								flag
+							;] with-aligned-allot
+						else
+							drop drop drop drop drop
+							0
+						then
+					;] current-fs@ with-open-dir-at-root-path
+					
+					dup 1 = if
+						fn-buf fn-len @ rm-r
+					else
+						dup 2 = if
+							fn-buf fn-len @ rm-path-add
+							rm-verbose @ if
+							." removing file: " rm-path cell + rm-path @ 1 - type cr
+							then
+							rm-path cell + rm-path @ 1 - fat32-tools::remove-file
+							rm-path-del
+						else
+							dup 0 = if
+							rm-verbose @ if
+							." removing dir: " rm-path cell + rm-path @  type cr
+							then
+								rm-path cell + rm-path @ fat32-tools::remove-dir
+								rm-path-del
+							then
+						then
+					then
+
+				0= until
+
+				fn-buf ram-here!
 		; is rm-r
 
 		: rm ( word -- )
@@ -221,12 +328,15 @@ begin-module fat32-cmd
 			n 0> if
 				tkn c@ [char] - = if
 					tkn n [char] R char-in-string? if
+						tkn n [char] v char-in-string? rm-verbose !
+						0 rm-path !
 						token rm-r
 						0 to n
 					then
-					tkn n [char] h char-in-string? if
-						." rm [-R] <dir or file> <dir or file>..." cr
+					tkn n [char] h char-in-string? n 0> and if
+						." rm [-Rv] <dir or file> <dir or file>..." cr
 						." -R : recursive deletion of one directory" cr
+						." -v : verbose for recursive deletion " cr
 						0 to n
 					then
 				else
