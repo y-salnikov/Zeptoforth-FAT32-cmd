@@ -194,24 +194,61 @@ begin-module fat32-cmd
 				fat32-tools::change-dir
 		;
 
-		: mkdir ( word ) \ todo: -p option
+		256 buffer: rm-path
+		variable rm-verbose
+        variable rm-ptr
+		
+		: next-dir ( -- str n )
+			rm-path @ 0> rm-ptr @ rm-path @ < and  if
+				rm-path @ 0 do
+					rm-path cell + i + rm-ptr @ + c@ [char] / = i rm-ptr @ + 0> and i rm-ptr @ + rm-path @ 1- >= or if
+						i 1+ rm-ptr +!
+						rm-path cell + rm-ptr @  leave
+					then
+				loop
+			else
+				0 0
+			then
+		;
+
+		: mkdir ( word )
 			cr
 			token { tkn n }
+			0 { parents }
+			0 { p-end }
 			begin 
 			n 0> if
 				tkn c@ [char] - = if
-					token to n to tkn
+					tkn n [char] p char-in-string? if true to parents then
+					tkn n [char] h char-in-string? if
+						." mkdir [-p] <dir1> <dir2> ... " cr
+						." -p: create parents" cr
+						0 to n
+					else
+						token to n to tkn
+					then
 				else
-					tkn n fat32-tools::create-dir
-					token to n to tkn
+					parents not if
+						tkn n fat32-tools::create-dir
+						token to n to tkn
+					else
+						tkn n rm-path string!
+						0 rm-ptr !
+						begin
+							next-dir dup to p-end
+							dup 0> if
+								2dup fat32-tools::exists? not if
+									fat32-tools::create-dir
+								then
+							then
+						p-end 0= until
+						token to n to tkn
+					then
 				then
 			then
 			n 0= until
 		;
 		
-		256 buffer: rm-path
-		variable rm-verbose
-
 		: rm-path-add { str n -- }
 			n 0> if
 				rm-path @ { idx }
