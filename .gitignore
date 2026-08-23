@@ -3,6 +3,5 @@ lib
 utils
 .lazy.lua
 main.fs
-ctags.sh
 tags
 

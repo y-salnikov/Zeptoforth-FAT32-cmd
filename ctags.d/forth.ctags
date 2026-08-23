@@ -1,0 +1,47 @@
+#
+#  Copyright (c) 2023, Eric Forgeot
+#  Copyright (c) 2023, Masatake YAMATO
+#
+#  This source code is released for free distribution under the terms of the
+#  GNU General Public License version 2 or (at your opinion) any later version.
+#
+#  This module contains functions for generating tags for Forth files
+#  https://www.forth.com/starting-forth/1-forth-stacks-dictionary/
+#
+
+#--fields=++{line}
+#--fields=+{scope}
+#--fields=+{kind}
+
+
+#--kinddef-Forth=w,word,words
+#--kinddef-Forth=v,variable,variables
+#--kinddef-Forth=c,constant,constants
+--kinddef-Forth=M,module,modules
+--kinddef-Forth=n,member,members
+--kinddef-Forth=m,method,methods
+--kinddef-Forth=s,structure,structures
+--kinddef-Forth=f,field,fields
+--kinddef-Forth=b,buffer,buffers
+
+--regex-Forth=/^[[:space:]]*\\.*//{exclusive}
+--regex-Forth=/(^|[[:space:]]+):[[:space:]]+([^[:space:]]+)/\2/w/{scope=ref}
+--regex-Forth=/variable[[:space:]]+([^[:space:]]+)/\1/v/{icase}{scope=ref}
+--regex-Forth=/constant[[:space:]]+([^[:space:]]+)/\1/c/{icase}{scope=ref}
+--regex-Forth=/member[[:space:]]+([^[:space:]]+)/\1/c/{icase}{scope=ref}
+--regex-Forth=/method[[:space:]]+([^[:space:]]+)/\1/c/{icase}{scope=ref}
+--regex-Forth=/define[[:space:]]+([^[:space:]]+)/\1/c/{icase}{scope=ref}
+--regex-Forth=/buffer:[[:space:]]+([^[:space:]]+)/\1/b/{icase}{scope=ref}
+--regex-Forth=/create[[:space:]]+([^[:space:]]+)/\1/w/{icase}{scope=ref}
+
+--regex-Forth=/begin\-structure[[:space:]]+([^[:space:]]+)/\1/s/{icase}{scope=push}
+--regex-Forth=/field:[[:space:]]+([^[:space:]]+)/\1/f/{icase}{scope=ref}
+--regex-Forth=/cfield:[[:space:]]+([^[:space:]]+)/\1/f/{icase}{scope=ref}
+--regex-Forth=/hfield:[[:space:]]+([^[:space:]]+)/\1/f/{icase}{scope=ref}
+--regex-Forth=/\+field[[:space:]]+([^[:space:]]+)/\1/f/{icase}{scope=ref}
+--regex-Forth=/(^|[[:space:]]+)end-structure//{placeholder}{scope=pop}
+
+--regex-Forth=/(^|[[:space:]]+)begin-module[[:space:]]+([^[:space:]]+)/\2/M/{icase}{scope=push}
+--regex-Forth=/(^|[[:space:]]+)continue-module[[:space:]]+([^[:space:]]+)/\2/M/{icase}{scope=push}
+--regex-Forth=/(^|[[:space:]]+)end-module//{placeholder}{scope=pop}
+--regex-Forth=/(^|[[:space:]]+)end-module>//{placeholder}{scope=pop}
