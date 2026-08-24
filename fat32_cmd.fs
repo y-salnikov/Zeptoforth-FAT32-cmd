@@ -9,6 +9,7 @@ begin-module fat32-cmd
 		lock import
 		rtc import
 		
+
 		: size-human-readable ( u -- )
 			.							\ for now
 		;
@@ -21,7 +22,79 @@ begin-module fat32-cmd
 				then
 			loop
 		;
-		
+
+		: dir-entries-num { path_adr path_n -- N }
+			path_adr path_n
+			[:
+				[: 
+					<fat32-entry> class-size [:
+						0 { dir entry entries-count }
+						entry dir
+						ram-here { fn-buf }
+						12 ram-allot
+						begin
+							2dup read-dir if
+									fn-buf 12 3 pick file-name@ { fn_a fn_l }
+									fn_a fn_l s" ." equal-strings? not if
+									fn_a fn_l s" .." equal-strings? not if
+											1 +to entries-count
+										then
+									then
+									false
+							else
+								2drop true
+							then
+						until
+						fn-buf ram-here!
+						entries-count
+					;] with-aligned-allot
+				;] current-fs@ with-open-dir-at-root-path
+			;] fs-lock with-lock
+
+		;
+
+		: for-each-in-dir { tkn n xt -- }  ( xt: fn_adr fn_len -- )
+
+			tkn n dir-entries-num { entries-count }	
+			ram-here { fnpad }
+			entries-count 12 * ram-allot
+			ram-here { tmppad } 12 ram-allot
+
+			tmppad
+			fnpad
+			tkn n
+			[:
+				[: 
+					<fat32-entry> class-size [: { tmppad fnpad dir entry }
+						0 { idx }
+						entry dir
+						begin
+							2dup read-dir if
+								tmppad 12 3 pick file-name@ { fn_a fn_l }
+								fn_a fn_l s" ." equal-strings? not if
+								fn_a fn_l s" .." equal-strings? not if
+										fnpad idx 12 * + 12 bl fill
+										fn_a fnpad idx 12 * + fn_l move
+										1 +to idx
+									then
+								then
+								false
+							else
+								2drop true
+							then
+						until
+					;] with-aligned-allot
+				;] current-fs@ with-open-dir-at-root-path
+			;] fs-lock with-lock
+			0 tmppad !
+			fnpad { fnptr }
+			begin
+				fnptr 12 compat::-trailing xt execute
+				12 +to fnptr
+			fnptr c@ 0= until
+			fnpad ram-here!
+		;
+
 		: filenames> { fn1_adr fn2_adr -- result }
 			false { finish }
 			0 { counter }
@@ -79,7 +152,6 @@ begin-module fat32-cmd
 			;] fs-lock with-lock
 			{ entries-count dir-count }
 
-			entries-count 0> if	
 
 				ram-here { names-buf }
 				entries-count 13 * ram-allot
@@ -90,6 +162,8 @@ begin-module fat32-cmd
 				entries-count cells  ram-allot
 				ram-here { date-buf }
 				entries-count date-time-size 2* * ram-allot 4 ram-align,
+				
+				entries-count 0> if
 				
 				names-buf sort-buf len-buf date-buf entries-count dir-count
 				
@@ -127,7 +201,8 @@ begin-module fat32-cmd
 						;] with-aligned-allot
 					;] current-fs@ with-open-dir-at-root-path
 				;] fs-lock with-lock
-
+			then
+			entries-count 0> if
 				sorted if
 								[: { offset n sort-buf names-buf }
 									0 0 true { idx1 idx2 finish }
