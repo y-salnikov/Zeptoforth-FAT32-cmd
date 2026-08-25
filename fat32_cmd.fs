@@ -362,74 +362,29 @@ begin-module fat32-cmd
 			then
 		;
 
+		: rm-path-str (  -- rm-path-adr rm-path-len  ) rm-path cell + rm-path @ ;
+
 		defer rm-r ( path-adr path-n  -- ) \ recursive delete of dir
 				
 		:noname { tkn n }
-				tkn n rm-path-add
-				ram-here { fn-buf }
-				16 ram-allot
-				ram-here { fn-len }
-				cell ram-allot
-				begin
-
-					fn-buf fn-len rm-path cell + rm-path @ 2dup [:
-						dup dir-empty? not if
-
-							<fat32-entry> class-size [: { fn-buf fn-len tkn n dir entry }
-								0 { flag }
-								entry dir
-								begin
-									2dup read-dir if
-										fn-buf 12 3 pick file-name@  fn-len ! drop
-										fn-buf fn-len @ s" ." equal-strings? not if
-											fn-buf fn-len @ s" .." equal-strings? not if
-												over entry-dir? if
-													\ rm subdir
-													1 to flag
-												else
-													\ rm file
-													2 to flag
-												then
-											then
-										then
-										false
-									else
-										2drop true
-									then
-								until
-
-								flag
-							;] with-aligned-allot
-						else
-							drop drop drop drop drop
-							0
-						then
-					;] current-fs@ with-open-dir-at-root-path
-					
-					dup 1 = if
-						fn-buf fn-len @ rm-r
+			tkn n rm-path-add
+			rm-path-str 1- + c@ [char] / = if rm-path-str 1- else rm-path-str then
+			{ fn-adr fn-len }
+			fn-adr fn-len fat32-tools::file? if
+				rm-verbose @ if ." removing file: " fn-adr fn-len  type cr then
+				fn-adr fn-len  fat32-tools::remove-file 
+			else
+				rm-path-str fat32-tools::dir? if
+					rm-path-str dir-entries-num 0= if
+						rm-verbose @ if ." removing directory: " rm-path-str type cr then
+						rm-path-str fat32-tools::remove-dir
 					else
-						dup 2 = if
-							fn-buf fn-len @ rm-path-add
-							rm-verbose @ if
-							." removing file: " rm-path cell + rm-path @ 1 - type cr
-							then
-							rm-path cell + rm-path @ 1 - fat32-tools::remove-file
-							rm-path-del
-						else
-							dup 0 = if
-							rm-verbose @ if
-							." removing dir: " rm-path cell + rm-path @  type cr
-							then
-								rm-path cell + rm-path @ fat32-tools::remove-dir
-								rm-path-del
-							then
-						then
+						rm-path-str ['] rm-r for-each-in-dir
+						rm-path-str fat32-tools::remove-dir
 					then
-
-				0= until
-
-				fn-buf ram-here!
+				then
+			then
+			rm-path-del
 		; is rm-r
 
 		: rm ( word -- )
