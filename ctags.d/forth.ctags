@@ -17,6 +17,7 @@
 #--kinddef-Forth=w,word,words
 #--kinddef-Forth=v,variable,variables
 #--kinddef-Forth=c,constant,constants
+--kinddef-Forth=C,class,classes
 --kinddef-Forth=M,module,modules
 --kinddef-Forth=n,member,members
 --kinddef-Forth=m,method,methods
@@ -28,9 +29,13 @@
 --regex-Forth=/(^|[[:space:]]+):[[:space:]]+([^[:space:]]+)/\2/w/{scope=ref}
 --regex-Forth=/variable[[:space:]]+([^[:space:]]+)/\1/v/{icase}{scope=ref}
 --regex-Forth=/constant[[:space:]]+([^[:space:]]+)/\1/c/{icase}{scope=ref}
---regex-Forth=/member[[:space:]]+([^[:space:]]+)/\1/c/{icase}{scope=ref}
---regex-Forth=/method[[:space:]]+([^[:space:]]+)/\1/c/{icase}{scope=ref}
---regex-Forth=/define[[:space:]]+([^[:space:]]+)/\1/c/{icase}{scope=ref}
+
+--regex-Forth=/begin-class[[:space:]]+([^[:space:]]+)/\1/C/{icase}{scope=push}
+--regex-Forth=/member[[:space:]]+([^[:space:]]+)/\1/n/{icase}{scope=ref}
+--regex-Forth=/method[[:space:]]+([^[:space:]]+)/\1/m/{icase}{scope=ref}
+--regex-Forth=/define[[:space:]]+([^[:space:]]+)/\1/w/{icase}{scope=ref}
+--regex-Forth=/(^|[[:space:]]+)end-class//{placeholder}{scope=pop}
+
 --regex-Forth=/buffer:[[:space:]]+([^[:space:]]+)/\1/b/{icase}{scope=ref}
 --regex-Forth=/create[[:space:]]+([^[:space:]]+)/\1/w/{icase}{scope=ref}
 
@@ -40,6 +45,8 @@
 --regex-Forth=/hfield:[[:space:]]+([^[:space:]]+)/\1/f/{icase}{scope=ref}
 --regex-Forth=/\+field[[:space:]]+([^[:space:]]+)/\1/f/{icase}{scope=ref}
 --regex-Forth=/(^|[[:space:]]+)end-structure//{placeholder}{scope=pop}
+
+
 
 --regex-Forth=/(^|[[:space:]]+)begin-module[[:space:]]+([^[:space:]]+)/\2/M/{icase}{scope=push}
 --regex-Forth=/(^|[[:space:]]+)continue-module[[:space:]]+([^[:space:]]+)/\2/M/{icase}{scope=push}
