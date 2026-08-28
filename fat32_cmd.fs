@@ -10,8 +10,14 @@ begin-module fat32-cmd
 		rtc import
 		
 
-		: size-human-readable ( u -- )
-			.							\ for now
+		: size-human-readable { size -- }
+			size 0< if
+				."     >2 GB"
+			else
+				s" BKMGTP" drop { suffix }
+				size s>f ln 1024,0 ln f/ floor dup 0< if drop 0 then { index }
+				size s>f 1024,0 index s>f f** f/ 2 f.n suffix index + c@ emit space
+			then
 		;
 		: char-in-string? { str len u-char -- flag }
 			false
@@ -231,7 +237,7 @@ begin-module fat32-cmd
 									names-buf sort-buf i cells + @ 13 * + 13 type \ name
 									2 spaces
 									sort-buf i cells + @ dir-count < if 
-										." DIR  "
+										."  DIR    "
 									else
 										len-buf sort-buf i cells + @ cells + @ size-human-readable
 									then
