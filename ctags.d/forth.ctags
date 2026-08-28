@@ -26,7 +26,7 @@
 --kinddef-Forth=b,buffer,buffers
 --kinddef-Forth=t,string,strings
 
---regex-Forth=/\"[[:space:]]([^\"]+)\"/\1/t/{scope=ref}{exclusive}
+--regex-Forth=/(\"[[:space:]][^\"]+\")/\1/t/{scope=ref}{exclusive}
 --regex-Forth=/^[[:space:]]*\\.*//{exclusive}
 --regex-Forth=/(^|[[:space:]]+):[[:space:]]+([^[:space:]]+)/\2/w/{scope=ref}
 --regex-Forth=/variable[[:space:]]+([^[:space:]]+)/\1/v/{icase}{scope=ref}

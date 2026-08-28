@@ -426,12 +426,39 @@ begin-module fat32-cmd
 			n 0= until
 		;
 
+		: file-name-only { path-adr path-len -- filename-adr filename-len }
+			0 { idx }
+			path-len 0> if
+				0 path-len 1- ?do
+					i to idx
+					path-adr i + c@ [char] / = if leave then
+				-1 +loop
+			then
+			path-adr idx + c@ [char] / = if  1 +to idx then
+			idx path-len >= if
+				path-adr 0
+			else
+				path-adr idx + path-len idx -
+			then
+		;
+
+		: copy-file-to-dir { file-path fplen dir-path dplen -- }
+				ram-here { path }
+				256 ram-allot
+				dir-path path dplen move
+				path dplen 1- + c@ [char] / = not if [char] / path dplen + c! 1 +to dplen then
+				file-path fplen file-name-only { fnlen } path dplen + fnlen move
+				file-path fplen path dplen fnlen + fat32-tools::copy-file
+				path ram-here!
+		;
+
 	end-module> import
 
 	' ls export ls
 	' cd export cd
 	' rm export rm
 	' mkdir export mkdir
-
+	' copy-file-to-dir export cfd
 end-module
+
 
