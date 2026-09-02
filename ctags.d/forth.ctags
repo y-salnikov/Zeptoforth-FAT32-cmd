@@ -17,6 +17,8 @@
 #--kinddef-Forth=w,word,words
 #--kinddef-Forth=v,variable,variables
 #--kinddef-Forth=c,constant,constants
+
+
 --kinddef-Forth=C,class,classes
 --kinddef-Forth=M,module,modules
 --kinddef-Forth=n,member,members
@@ -25,6 +27,8 @@
 --kinddef-Forth=f,field,fields
 --kinddef-Forth=b,buffer,buffers
 --kinddef-Forth=t,string,strings
+
+--_scopesep-Forth=*/*:::
 
 --regex-Forth=/(\"[[:space:]][^\"]+\")/\1/t/{scope=ref}{exclusive}
 --regex-Forth=/^[[:space:]]*\\.*//{exclusive}
