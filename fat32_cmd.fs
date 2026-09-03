@@ -1,3 +1,6 @@
+
+#include extra/common/init_fat32.fs
+
 begin-module fat32-cmd
 
 	begin-module fat32-cmd-internal
@@ -8,6 +11,8 @@ begin-module fat32-cmd
 		fat32 import
 		lock import
 		rtc import
+		block-dev import
+		blk import
 		
 
 		: size-human-readable { size -- }
@@ -452,13 +457,42 @@ begin-module fat32-cmd
 				path ram-here!
 		;
 
+		: format-fat32
+			setup-blocks-fat32::my-fs simple-blocks-fat32::simple-blocks-fat32-internal::simple-blocks-fat32-dev { blks }
+			blks dup <mbr> [: { dev mbr }
+				\ mbr mbr-valid? not if
+				\ block::erase-all-blocks
+				true dev write-blk-block-zero!
+				true dev write-through!
+				4 dev init-fat32-tool::init-partition-and-fat32
+				\ else
+				dev fat32::fat32-internal::sector-size [: { dev scratchpad }
+					\ Fix broken VBR's
+					true dev write-through!
+					scratchpad fat32::fat32-internal::sector-size 1 dev block@
+					s\" \xEB\x58\x90MSWIN4.1" scratchpad $000 + over equal-strings? not
+					scratchpad $1FE + c@ $55 <> or
+					scratchpad $1FF + c@ $AA <> or if
+					\ Magic for Windows
+					s\" \xEB\x58\x90MSWIN4.1" scratchpad $000 + swap move
+					$55 scratchpad $1FE + c! \ magic 55
+					$AA scratchpad $1FF + c! \ magic AA
+					scratchpad fat32::fat32-internal::sector-size 1 dev block!
+					then
+				;] with-aligned-allot
+				\ then         
+			;] with-object
+			blks flush-blocks
+		;
+
 	end-module> import
 
 	' ls export ls
 	' cd export cd
 	' rm export rm
 	' mkdir export mkdir
-	' copy-file-to-dir export cfd
+	' format-fat32 export format-fat32
+
 end-module
 
 
