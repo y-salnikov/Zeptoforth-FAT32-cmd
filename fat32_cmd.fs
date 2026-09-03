@@ -456,6 +456,35 @@ begin-module fat32-cmd
 				file-path fplen path dplen fnlen + fat32-tools::copy-file
 				path ram-here!
 		;
+		
+		: cp ( [-opts] src1 src2 ... dest -- )
+			0 ram-here { arg_count old_here }
+			begin
+				token
+				dup if
+					ram-here { adr }
+					dup { len }
+					dup cell + ram-allot 4 ram-align,
+					adr string!
+					1 +to arg_count
+					false
+				else
+					2drop
+					true
+				then
+			until
+			old_here { string_ptr }
+			arg_count 0 do
+				string_ptr @ { len }
+				string_ptr cell + { adr }
+				adr len type cr
+
+				len cell + +to string_ptr
+				string_ptr cell mod dup 0> if 4 swap - +to string_ptr then
+				
+			loop
+			old_here ram-here!
+		;
 
 		: format-fat32
 			setup-blocks-fat32::my-fs simple-blocks-fat32::simple-blocks-fat32-internal::simple-blocks-fat32-dev { blks }
@@ -492,6 +521,7 @@ begin-module fat32-cmd
 	' rm export rm
 	' mkdir export mkdir
 	' format-fat32 export format-fat32
+	' cp export cp
 
 end-module
 
