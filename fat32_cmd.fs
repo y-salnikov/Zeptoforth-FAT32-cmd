@@ -480,7 +480,7 @@ begin-module fat32-cmd
 				adr len type cr
 
 				len cell + +to string_ptr
-				string_ptr cell mod dup 0> if 4 swap - +to string_ptr then
+				string_ptr cell mod dup 0> if cell swap - +to string_ptr else drop then
 				
 			loop
 			old_here ram-here!
