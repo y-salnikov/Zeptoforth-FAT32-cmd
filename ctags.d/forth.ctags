@@ -35,6 +35,7 @@
 --regex-Forth=/(^|[[:space:]]+):[[:space:]]+([^[:space:]]+)/\2/w/{scope=ref}
 --regex-Forth=/variable[[:space:]]+([^[:space:]]+)/\1/v/{icase}{scope=ref}
 --regex-Forth=/constant[[:space:]]+([^[:space:]]+)/\1/c/{icase}{scope=ref}
+--regex-Forth=/(^|[[:space:]]+)is[[:space:]]+([^[:space:]]+)/\2/w/{scope=ref}
 
 --regex-Forth=/begin-class[[:space:]]+([^[:space:]]+)/\1/C/{icase}{scope=push}
 --regex-Forth=/member[[:space:]]+([^[:space:]]+)/\1/n/{icase}{scope=ref}

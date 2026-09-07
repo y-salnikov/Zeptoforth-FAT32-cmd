@@ -447,6 +447,8 @@ begin-module fat32-cmd
 			then
 		;
 
+		variable cp-r-force
+
 		: copy-file-to-dir { file-path fplen dir-path dplen -- }
 				ram-here { path }
 				256 ram-allot
@@ -456,8 +458,37 @@ begin-module fat32-cmd
 				file-path fplen path dplen fnlen + fat32-tools::copy-file
 				path ram-here!
 		;
-		
+
+		defer cp-r ( src_adr src_len dst_adr dst_len -- )
+		:noname 
+			{ src_adr src_len dst_adr dst_len }
+
+			src_adr src_len file? if
+				src_adr src_len dst_adr dst_len copy-file-to-dir
+			else
+				src_adr src_len file-name-only { dir_adr dir_len }
+				ram-here { newdir_path }
+				dir_len dst_len 2+ ram-allot cell ram-align,
+				dst_adr newdir_path dst_len move
+				newdir_path dst_len 1- + c@ [char] / <> if
+					[char] / newdir_path dst_len + c! 1
+				else
+					0
+				then
+				dup dst_len + dir_len + { newdir_len }
+				newdir_path + dst_len + dir_adr swap dir_len move
+				
+				newdir_path newdir_len exists? 0= if
+					newdir_path newdir_len fat32-tools::create-dir
+				then
+					
+				newdir_path ram-here!
+			then
+		; is cp-r
+
 		: cp ( [-opts] src1 src2 ... dest -- )
+			cr
+			-1 { last_arg }
 			0 ram-here { arg_count old_here }
 			begin
 				token
@@ -466,6 +497,7 @@ begin-module fat32-cmd
 					dup { len }
 					dup cell + ram-allot 4 ram-align,
 					adr string!
+					adr to last_arg
 					1 +to arg_count
 					false
 				else
@@ -474,15 +506,52 @@ begin-module fat32-cmd
 				then
 			until
 			old_here { string_ptr }
-			arg_count 0 do
-				string_ptr @ { len }
-				string_ptr cell + { adr }
-				adr len type cr
+			0 0 0	{ mode force recusive }
+			last_arg 0> if
+				last_arg cell + last_arg @ exists? if
+					last_arg cell + last_arg @ dir? if  \ copy files (and dirs if -R option to target dir )
+						1 to mode
+					else								\ rewrite 1 file if -f option, error if more than 1 source
+						2 to mode
+					then
+				else									\ copy 1 file, error if more than 1 source
+						3 to mode
+				then
 
-				len cell + +to string_ptr
-				string_ptr cell mod dup 0> if cell swap - +to string_ptr else drop then
-				
-			loop
+				arg_count 1- 0 ?do
+					string_ptr @ { len }
+					string_ptr cell + { adr }
+					adr c@ [char] - = if				\ options arg
+						adr len [char] R char-in-string? if 1 to recursive then
+						adr len [char] f char-in-string? if 1 to force then
+						adr len [char] h char-in-string? if 4 to mode
+							." cp [-hfR] <src> [<src>...] <dst> " cr
+							." -R recursive copy directories" cr
+							." -f overwrite existing files" cr
+							leave
+						then
+					else
+						mode case
+							1 of
+								recusive 0= if
+									adr len last_arg cell + last_arg @ copy-file-to-dir
+								else
+									adr len file? if
+										adr len last_arg cell + last_arg @ copy-file-to-dir
+									else
+										force cp-r-force !
+
+									then
+								then
+							endof
+						endcase
+					then
+					len cell + +to string_ptr
+					string_ptr cell mod dup 0> if cell swap - +to string_ptr else drop then
+					
+				loop
+			then
+		
 			old_here ram-here!
 		;
 
