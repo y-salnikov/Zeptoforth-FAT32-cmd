@@ -63,6 +63,28 @@ begin-module fat32-cmd
 			;] fs-lock with-lock
 
 		;
+		
+
+		: str+ { str1_adr str1_len str2_adr str2_len -- str_adr str_len }
+			ram-here str1_len str2_len + { pad_adr pad_len }
+			pad_len ram-allot cell ram-align,
+			str1_adr pad_adr str1_len move
+			str2_adr pad_adr str1_len + str2_len move
+			pad_adr pad_len 
+		;
+		: path+ { str1_adr str1_len str2_adr str2_len -- str_adr str_len }
+			str1_adr str1_len 1- + c@ [char] / = if
+				-1 +to str1_len
+			then
+			ram-here str1_len 1+ str2_len + { pad_adr pad_len }
+			pad_len ram-allot cell ram-align,
+			str1_adr pad_adr str1_len move
+			[char] / pad_adr str1_len +  c!
+			str2_adr pad_adr 1+ str1_len + str2_len move
+			pad_adr pad_len 
+		;
+
+
 
 		: for-each-in-dir { tkn n xt -- }  ( xt: fn_adr fn_len -- )
 
@@ -105,6 +127,50 @@ begin-module fat32-cmd
 			fnptr c@ 0= until
 			fnpad ram-here!
 		;
+
+		: for-each-in-dir-abs { tkn n xt -- }  ( xt: fn_adr fn_len -- )
+
+			tkn n dir-entries-num { entries-count }	
+			ram-here { fnpad }
+			entries-count 12 * ram-allot
+			ram-here { tmppad } 12 ram-allot
+
+			tmppad
+			fnpad
+			tkn n
+			[:
+				[: 
+					<fat32-entry> class-size [: { tmppad fnpad dir entry }
+						0 { idx }
+						entry dir
+						begin
+							2dup read-dir if
+								tmppad 12 3 pick file-name@ { fn_a fn_l }
+								fn_a fn_l s" ." equal-strings? not if
+								fn_a fn_l s" .." equal-strings? not if
+										fnpad idx 12 * + 12 bl fill
+										fn_a fnpad idx 12 * + fn_l move
+										1 +to idx
+									then
+								then
+								false
+							else
+								2drop true
+							then
+						until
+					;] with-aligned-allot
+				;] current-fs@ with-open-dir-at-root-path
+			;] fs-lock with-lock
+			0 tmppad !
+			fnpad { fnptr }
+			begin
+				tkn n fnptr 12 path+ over { old_here }  compat::-trailing xt execute
+				old_here ram-here!
+				12 +to fnptr
+			fnptr c@ 0= until
+			fnpad ram-here!
+		;
+
 
 		: filenames> { fn1_adr fn2_adr -- result }
 			false { finish }
@@ -448,40 +514,39 @@ begin-module fat32-cmd
 		;
 
 		variable cp-r-force
+		variable cp-r-dst-adr
+		variable cp-r-dst-len
+		variable cp-r-verbose
 
 		: copy-file-to-dir { file-path fplen dir-path dplen -- }
 				ram-here { path }
-				256 ram-allot
+				dplen 16 + ram-allot
 				dir-path path dplen move
 				path dplen 1- + c@ [char] / = not if [char] / path dplen + c! 1 +to dplen then
 				file-path fplen file-name-only { fnlen } path dplen + fnlen move
+				." cftd " file-path fplen type ."  to " path dplen fnlen + type cr
 				file-path fplen path dplen fnlen + fat32-tools::copy-file
 				path ram-here!
 		;
 
-		defer cp-r ( src_adr src_len dst_adr dst_len -- )
+		defer cp-r ( src_adr src_len -- )
 		:noname 
+			cp-r-dst-adr @ cp-r-dst-len @
 			{ src_adr src_len dst_adr dst_len }
 
-			src_adr src_len file? if
+			src_adr src_len fat32-tools::file? if
 				src_adr src_len dst_adr dst_len copy-file-to-dir
 			else
 				src_adr src_len file-name-only { dir_adr dir_len }
-				ram-here { newdir_path }
-				dir_len dst_len 2+ ram-allot cell ram-align,
-				dst_adr newdir_path dst_len move
-				newdir_path dst_len 1- + c@ [char] / <> if
-					[char] / newdir_path dst_len + c! 1
-				else
-					0
-				then
-				dup dst_len + dir_len + { newdir_len }
-				newdir_path + dst_len + dir_adr swap dir_len move
-				
-				newdir_path newdir_len exists? 0= if
+				dst_adr dst_len dir_adr dir_len path+ { newdir_path newdir_len }
+\				." newdir_path: " newdir_path newdir_len type cr
+				newdir_path newdir_len fat32-tools::exists? 0= if
 					newdir_path newdir_len fat32-tools::create-dir
 				then
-					
+				newdir_path cp-r-dst-adr !
+				newdir_len cp-r-dst-len !
+				." cp-r " src_adr src_len type space newdir_path newdir_len type cr
+				src_adr src_len ['] cp-r for-each-in-dir-abs
 				newdir_path ram-here!
 			then
 		; is cp-r
@@ -506,10 +571,10 @@ begin-module fat32-cmd
 				then
 			until
 			old_here { string_ptr }
-			0 0 0	{ mode force recusive }
+			0 0 0 0	{ mode force recursive verbose }
 			last_arg 0> if
-				last_arg cell + last_arg @ exists? if
-					last_arg cell + last_arg @ dir? if  \ copy files (and dirs if -R option to target dir )
+				last_arg string@ fat32-tools::exists? if
+					last_arg string@ fat32-tools::dir? if  \ copy files (and dirs if -R option to target dir )
 						1 to mode
 					else								\ rewrite 1 file if -f option, error if more than 1 source
 						2 to mode
@@ -524,23 +589,29 @@ begin-module fat32-cmd
 					adr c@ [char] - = if				\ options arg
 						adr len [char] R char-in-string? if 1 to recursive then
 						adr len [char] f char-in-string? if 1 to force then
+						adr len [char] v char-in-string? if 1 to verbose then
 						adr len [char] h char-in-string? if 4 to mode
-							." cp [-hfR] <src> [<src>...] <dst> " cr
+							." cp [-hfRv] <src> [<src>...] <dst> " cr
 							." -R recursive copy directories" cr
 							." -f overwrite existing files" cr
+							." -v verbose" cr
 							leave
 						then
 					else
 						mode case
 							1 of
-								recusive 0= if
-									adr len last_arg cell + last_arg @ copy-file-to-dir
+								recursive 0= if
+									." copy file " adr len type ."  to " last_arg string@ type cr
+									adr len last_arg string@ copy-file-to-dir
 								else
-									adr len file? if
-										adr len last_arg cell + last_arg @ copy-file-to-dir
+									adr len fat32-tools::file? if
+										adr len last_arg string@ copy-file-to-dir
 									else
+										." copy directory " adr len type ."  to " last_arg string@ type cr
 										force cp-r-force !
-
+										verbose cp-r-verbose !
+										last_arg  string@ cp-r-dst-len ! cp-r-dst-adr !
+										adr len cp-r
 									then
 								then
 							endof
