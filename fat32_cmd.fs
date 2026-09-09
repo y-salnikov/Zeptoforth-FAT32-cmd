@@ -457,6 +457,7 @@ begin-module fat32-cmd
 						rm-path-str fat32-tools::remove-dir
 					else
 						rm-path-str ['] rm-r for-each-in-dir
+						rm-verbose @ if ." removing directory: " rm-path-str type cr then
 						rm-path-str fat32-tools::remove-dir
 					then
 				then
@@ -518,15 +519,46 @@ begin-module fat32-cmd
 		variable cp-r-dst-len
 		variable cp-r-verbose
 
+
+		: cp-remove-if-exists { path_adr path_len -- }
+			path_adr path_len fat32-tools::exists? if
+				path_adr path_len fat32-tools::remove-file
+			then
+		;
+
 		: copy-file-to-dir { file-path fplen dir-path dplen -- }
 				ram-here { path }
 				dplen 16 + ram-allot
 				dir-path path dplen move
 				path dplen 1- + c@ [char] / = not if [char] / path dplen + c! 1 +to dplen then
 				file-path fplen file-name-only { fnlen } path dplen + fnlen move
-				." cftd " file-path fplen type ."  to " path dplen fnlen + type cr
+				cp-r-force @ if
+					path dplen fnlen + cp-remove-if-exists
+				then
 				file-path fplen path dplen fnlen + fat32-tools::copy-file
 				path ram-here!
+		;
+		
+		: cp-msg { verb? dir? str_from_adr str_from_len  str_to_adr str_to_len }
+			verb? if
+				dir? if
+					." copy directory: "
+				else
+					." copy file: "
+				then
+				str_from_adr str_from_len type
+				."  to "
+				str_to_adr str_to_len type
+				cr
+			then
+		;
+		
+		: cp-error { err -- }
+			err case
+				1 of
+					." Error: Must be only one source" cr
+				endof
+			endcase
 		;
 
 		defer cp-r ( src_adr src_len -- )
@@ -535,21 +567,30 @@ begin-module fat32-cmd
 			{ src_adr src_len dst_adr dst_len }
 
 			src_adr src_len fat32-tools::file? if
+				cp-r-verbose @ 0 src_adr src_len dst_adr dst_len cp-msg
 				src_adr src_len dst_adr dst_len copy-file-to-dir
 			else
 				src_adr src_len file-name-only { dir_adr dir_len }
 				dst_adr dst_len dir_adr dir_len path+ { newdir_path newdir_len }
-\				." newdir_path: " newdir_path newdir_len type cr
 				newdir_path newdir_len fat32-tools::exists? 0= if
 					newdir_path newdir_len fat32-tools::create-dir
 				then
+				cp-r-dst-adr @ cp-r-dst-len @
 				newdir_path cp-r-dst-adr !
 				newdir_len cp-r-dst-len !
-				." cp-r " src_adr src_len type space newdir_path newdir_len type cr
+				cp-r-verbose @ 1 src_adr src_len newdir_path newdir_len cp-msg
 				src_adr src_len ['] cp-r for-each-in-dir-abs
+				cp-r-dst-len ! cp-r-dst-adr !
 				newdir_path ram-here!
 			then
 		; is cp-r
+		
+		: cp-help
+							." cp [-hfRv] <src> [<src>...] <dst> " cr
+							." -R recursive copy directories" cr
+							." -f overwrite existing files" cr
+							." -v verbose" cr
+		;
 
 		: cp ( [-opts] src1 src2 ... dest -- )
 			cr
@@ -572,7 +613,7 @@ begin-module fat32-cmd
 			until
 			old_here { string_ptr }
 			0 0 0 0	{ mode force recursive verbose }
-			last_arg 0> if
+			last_arg 0 <= if exit then
 				last_arg string@ fat32-tools::exists? if
 					last_arg string@ fat32-tools::dir? if  \ copy files (and dirs if -R option to target dir )
 						1 to mode
@@ -582,32 +623,29 @@ begin-module fat32-cmd
 				else									\ copy 1 file, error if more than 1 source
 						3 to mode
 				then
-
 				arg_count 1- 0 ?do
 					string_ptr @ { len }
 					string_ptr cell + { adr }
 					adr c@ [char] - = if				\ options arg
 						adr len [char] R char-in-string? if 1 to recursive then
-						adr len [char] f char-in-string? if 1 to force then
-						adr len [char] v char-in-string? if 1 to verbose then
+						adr len [char] f char-in-string? if 1 to force  1 cp-r-force ! then
+						adr len [char] v char-in-string? if 1 to verbose 1 cp-r-verbose ! then
 						adr len [char] h char-in-string? if 4 to mode
-							." cp [-hfRv] <src> [<src>...] <dst> " cr
-							." -R recursive copy directories" cr
-							." -f overwrite existing files" cr
-							." -v verbose" cr
+						cp-help
 							leave
 						then
+						-1 +to arg_count
 					else
 						mode case
 							1 of
 								recursive 0= if
-									." copy file " adr len type ."  to " last_arg string@ type cr
+									verbose 0 adr len last_arg string@ cp-msg
 									adr len last_arg string@ copy-file-to-dir
 								else
 									adr len fat32-tools::file? if
+									verbose 0 adr len last_arg string@ cp-msg
 										adr len last_arg string@ copy-file-to-dir
 									else
-										." copy directory " adr len type ."  to " last_arg string@ type cr
 										force cp-r-force !
 										verbose cp-r-verbose !
 										last_arg  string@ cp-r-dst-len ! cp-r-dst-adr !
@@ -615,14 +653,23 @@ begin-module fat32-cmd
 									then
 								then
 							endof
+							2 of	
+									arg_count 2 <> if 1 cp-error exit then
+									verbose 0 adr len last_arg string@ cp-msg
+									force if last_arg string@ cp-remove-if-exists then
+									adr len last_arg string@ fat32-tools::copy-file
+							endof
+							3 of
+									arg_count 2 <> if 1 cp-error exit then
+									verbose 0 adr len last_arg string@ cp-msg
+									adr len last_arg string@ fat32-tools::copy-file
+							endof
 						endcase
 					then
 					len cell + +to string_ptr
 					string_ptr cell mod dup 0> if cell swap - +to string_ptr else drop then
 					
 				loop
-			then
-		
 			old_here ram-here!
 		;
 
