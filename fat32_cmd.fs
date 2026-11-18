@@ -186,29 +186,14 @@ begin-module fat32-cmd
 			result
 		;
 
-		: ls ( word -- )
-			current-fs@ averts x-fs-not-set
-			cr
-			0 1 0 { long sorted dates }
-			token { tkn n }
-			tkn c@ [char] - = if
-				
-				tkn n [char] h char-in-string? if
+		: ls-help
 							." ls [-lua] <path>" cr
 							." -l:  long format, one column" cr
 							." -u:  unsorted " cr
 							." -a:  all info (with dates)" cr
 							." Options can be combined like: -la" cr
-				then
-				tkn n [char] l char-in-string? if true to long then
-				tkn n [char] u char-in-string? if false to sorted then
-				tkn n [char] a char-in-string? if true to dates then
-
-				token to n to tkn
-			then
-
-			
-			tkn n
+		;
+		: ls-dir-count 	( tkn n )
 			[:
 				[: 
 					<fat32-entry> class-size [:
@@ -227,8 +212,81 @@ begin-module fat32-cmd
 					;] with-aligned-allot
 				;] current-fs@ with-open-dir-at-root-path
 			;] fs-lock with-lock
-			{ entries-count dir-count }
+		;
+		: ls-1
+					[:
+						[:		
+							<fat32-entry> class-size [:
+								
+								{ names-buf sort-buf len-buf date-buf entries-count dir-count dir entry }
 
+								0 0 0 { dir-idx file-idx idx }
+								entry dir
+								begin
+									2dup read-dir if
+										over entry-dir? if
+											dir-idx to idx
+											1 +to dir-idx
+											names-buf idx 13 * + dup 13 bl fill
+											12 3 pick file-name@ + [char] / swap c!
+										else
+											dir-count file-idx + to idx
+											1 +to file-idx
+											over entry-file-size @ len-buf idx cells + !
+											names-buf idx 13 * + dup 13 bl fill
+												12 3 pick file-name@ 2drop
+											then
+												date-buf idx 2* date-time-size * + 2 pick create-date-time@ 
+												date-buf idx 2* 1+ date-time-size * + 2 pick modify-date-time@ 
+												idx sort-buf idx cells + !
+											false
+										else
+											2drop true
+										then
+									until
+							;] with-aligned-allot
+						;] current-fs@ with-open-dir-at-root-path
+					;] fs-lock with-lock
+		;
+
+		: bubble-sort { offset n sort-buf names-buf }
+			0 0 true { idx1 idx2 finish }
+				n 1 > if
+					begin 
+						true to finish
+						n 1 - 0 do  
+							sort-buf i offset + cells + dup @ to idx1 cell + @ to idx2
+							names-buf idx1 13 * + names-buf idx2 13 * + filenames> if
+								idx2 sort-buf i offset + cells + !
+								idx1 sort-buf i offset + 1+ cells + !
+								false to finish
+							then
+						loop
+					finish until
+				then
+
+		;
+
+		: ls ( word -- )
+			current-fs@ averts x-fs-not-set
+			cr
+			0 1 0 { long sorted dates }
+			token { tkn n }
+			tkn c@ [char] - = if
+				
+				tkn n [char] h char-in-string? if
+					ls-help
+				then
+				tkn n [char] l char-in-string? if true to long then
+				tkn n [char] u char-in-string? if false to sorted then
+				tkn n [char] a char-in-string? if true to dates then
+
+				token to n to tkn
+			then
+			tkn n ls-dir-count
+
+			
+			{ entries-count dir-count }
 
 				ram-here { names-buf }
 				entries-count 13 * ram-allot
@@ -242,65 +300,16 @@ begin-module fat32-cmd
 				
 				entries-count 0> if
 				
-				names-buf sort-buf len-buf date-buf entries-count dir-count
-				
-				tkn n
-				[:
-					[:		
-						<fat32-entry> class-size [:
-							
-							{ names-buf sort-buf len-buf date-buf entries-count dir-count dir entry }
-
-							0 0 0 { dir-idx file-idx idx }
-							entry dir
-							begin
-								2dup read-dir if
-									over entry-dir? if
-										dir-idx to idx
-										1 +to dir-idx
-										names-buf idx 13 * + dup 13 bl fill
-										12 3 pick file-name@ + [char] / swap c!
-									else
-										dir-count file-idx + to idx
-										1 +to file-idx
-										over entry-file-size @ len-buf idx cells + !
-										names-buf idx 13 * + dup 13 bl fill
-											12 3 pick file-name@ 2drop
-										then
-											date-buf idx 2* date-time-size * + 2 pick create-date-time@ 
-											date-buf idx 2* 1+ date-time-size * + 2 pick modify-date-time@ 
-											idx sort-buf idx cells + !
-										false
-									else
-										2drop true
-									then
-								until
-						;] with-aligned-allot
-					;] current-fs@ with-open-dir-at-root-path
-				;] fs-lock with-lock
-			then
+					names-buf sort-buf len-buf date-buf entries-count dir-count
+					
+					tkn n
+					ls-1
+				then
 			entries-count 0> if
 				sorted if
-								[: { offset n sort-buf names-buf }
-									0 0 true { idx1 idx2 finish }
-										n 1 > if
-											begin 
-												true to finish
-												n 1 - 0 do  
-													sort-buf i offset + cells + dup @ to idx1 cell + @ to idx2
-													names-buf idx1 13 * + names-buf idx2 13 * + filenames> if
-														idx2 sort-buf i offset + cells + !
-														idx1 sort-buf i offset + 1+ cells + !
-														false to finish
-													then
-												loop
-											finish until
-										then
 
-								;] { bubble-sort }
-
-					0 dir-count sort-buf names-buf bubble-sort execute
-					dir-count entries-count dir-count - sort-buf names-buf bubble-sort execute
+					0 dir-count sort-buf names-buf bubble-sort
+					dir-count entries-count dir-count - sort-buf names-buf bubble-sort
 
 				then
 				long if
